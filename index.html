@@ -1,0 +1,227 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Suncraft Calculator</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2em; max-width: 700px; }
+    label { display: block; margin-top: 1em; }
+    input, select { width: 100%; padding: 0.5em; }
+    .summary { margin-top: 2em; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h2>Suncraft Project Calculator</h2>
+
+  <label>Product:
+    <select id="product"></select>
+  </label>
+
+  <label>Fabric:
+    <select id="fabric"></select>
+  </label>
+
+  <label>Sail Size (m²):
+    <input type="number" id="sailSize" placeholder="e.g. 24">
+  </label>
+
+  <label>Installation Hours:
+    <input type="number" id="labourHours">
+  </label>
+
+  <label>Number of Height Adjustments:
+    <input type="number" id="heightQty" value="0" min="0" onchange="renderHeightSelectors()">
+  </label>
+
+  <div id="heightSelectors"></div>
+
+  <label><input type="checkbox" id="useNZShipping"> Include NZ Shipping</label>
+  <label><input type="checkbox" id="includeGST"> Include GST (15%)</label>
+
+  <button onclick="calculate()">Calculate</button>
+
+  <div id="output" class="summary"></div>
+
+<script>
+  const fabricPrices = {
+"c": {
+  "NANO": 79.0,
+  "Soltis 92": 104.0,
+},
+"cs": {
+  "NANO": 79.0,
+  "Soltis 92": 104.0,
+},
+"cs twin": {
+  "NANO": 79.0,
+  "Soltis 92": 104.0,
+},
+"raff m wire guide": {
+  "NANO": 48.0,
+  "AustroNET 950 (max 3,9metre wide for RAFF Sails)": 35.0,
+  "Soltis 92": 66.0,
+  "Soltis W 96": 79.0,
+  "Acryl": 45.0,
+},
+"raff m alu guide": {
+  "NANO": 48.0,
+  "AustroNET 950 (max 3,9metre wide for RAFF Sails)": 35.0,
+  "Soltis 92": 66.0,
+  "Soltis W 96": 79.0,
+  "Acryl": 45.0,
+},
+"raff c": {
+  "NANO": 48.0,
+  "AustroNET 950 (max 3,9metre wide for RAFF Sails)": 35.0,
+  "Soltis 92": 66.0,
+  "Soltis W 96": 79.0,
+  "Acryl": 45.0,
+},
+"m": {
+  "AustroNET 950": 34.0,
+  "PES Linear": 52.0,
+  "Lotus Linear Cut": 52.0,
+  "Lotus Radial Cut": 66.0,
+},
+"one": {
+  "NANO": 74.0,
+  "AustroNET 950": 34.0,
+  "Lotus Linear Cut": 52.0,
+},
+"ma": {
+  "NANO": 74.0,
+  "AustroNET 950": 34.0,
+  "PES Linear": 52.0,
+  "Lotus Linear Cut": 52.0,
+  "Lotus Radial Cut": 66.0,
+},
+"flex": {
+  "Acryl": 49.0,
+  "AustroNET 950": 34.0,
+  "AustroNET 960": 34.0,
+  "Lotus Linear Cut": 45.0,
+  "NANO Linear": 59.0,
+},
+"sandy system": {
+  "AustroNET 932": 24.0,
+  "AustroNET 950": 29.0,
+},
+"fixed sail": {
+  "NANO": 65.0,
+  "Soltis 92": 79.0,
+  "Acryl": 55.0,
+  "AustroNET 950": 34.0,
+  "AustroNET 960": 43.0,
+  "PES Linear": 45.0,
+  "Lotus Linear Cut": 45.0,
+},
+}
+  const productMeta = {
+"c": { "hours": 16, "maxHeights": 2 },
+"cs": { "hours": 16, "maxHeights": 2 },
+"cs twin": { "hours": 24, "maxHeights": 4 },
+"raff m wire guide": { "hours": 8.0, "maxHeights": nan },
+"raff m alu guide": { "hours": 8.0, "maxHeights": nan },
+"raff c": { "hours": 8.0, "maxHeights": nan },
+"m": { "hours": 12, "maxHeights": 2 },
+"one": { "hours": 12, "maxHeights": 2 },
+"ma": { "hours": 12, "maxHeights": 2 },
+"flex": { "hours": 8, "maxHeights": 2 },
+"sandy system": { "hours": 8.0, "maxHeights": nan },
+"fixed sail": { "hours": 8.0, "maxHeights": nan },
+"unnamed: 13": { "hours": nan, "maxHeights": nan },
+"unnamed: 14": { "hours": nan, "maxHeights": nan },
+}
+
+  const generalCosts = {
+    hourlyRate: 85,
+    shippingIntl: {
+      hardware: 2500,
+      sail: 1000
+    },
+    shippingNZ: {
+      hardware: 1100,
+      sail: 1000
+    },
+    heightManual: 1300,
+    heightMotorised: 2350
+  };
+
+  function populateProductOptions() {
+    const productSelect = document.getElementById('product');
+    productSelect.innerHTML = Object.keys(fabricPrices).map(p => `<option value="${p}">${p.toUpperCase()}</option>`).join('');
+    updateFabricOptions();
+  }
+
+  function updateFabricOptions() {
+    const product = document.getElementById('product').value;
+    const fabrics = fabricPrices[product] || {};
+    const fabricSelect = document.getElementById('fabric');
+    fabricSelect.innerHTML = Object.keys(fabrics).map(f => `<option value="${f}">${f} ($${fabrics[f]}/m²)</option>`).join('');
+    document.getElementById('labourHours').value = productMeta[product]?.hours || 12;
+    renderHeightSelectors();
+  }
+
+  function renderHeightSelectors() {
+    const qty = parseInt(document.getElementById('heightQty').value) || 0;
+    const container = document.getElementById('heightSelectors');
+    container.innerHTML = '';
+    for (let i = 0; i < qty; i++) {
+      const label = document.createElement('label');
+      label.innerText = "Height Adjustment " + (i + 1);
+      const select = document.createElement('select');
+      select.className = "heightType";
+      select.innerHTML = `
+        <option value="manual">Manual ($${generalCosts.heightManual})</option>
+        <option value="motorised">Motorised ($${generalCosts.heightMotorised})</option>
+      `;
+      label.appendChild(select);
+      container.appendChild(label);
+    }
+  }
+
+  function calculate() {
+    const product = document.getElementById('product').value;
+    const fabric = document.getElementById('fabric').value;
+    const size = parseFloat(document.getElementById('sailSize').value) || 0;
+    const hours = parseFloat(document.getElementById('labourHours').value) || 0;
+    const includeNZ = document.getElementById('useNZShipping').checked;
+    const includeGST = document.getElementById('includeGST').checked;
+
+    const rate = fabricPrices[product]?.[fabric] || 0;
+    const fabricCost = rate * size;
+    const labourCost = hours * generalCosts.hourlyRate;
+    let shipping = generalCosts.shippingIntl.hardware + generalCosts.shippingIntl.sail;
+    if (includeNZ) {
+      shipping += generalCosts.shippingNZ.hardware + generalCosts.shippingNZ.sail;
+    }
+
+    let heightSelectors = document.querySelectorAll('.heightType');
+    let heightTotal = 0;
+    heightSelectors.forEach(sel => {
+      heightTotal += sel.value === 'manual' ? generalCosts.heightManual : generalCosts.heightMotorised;
+    });
+
+    let subtotal = fabricCost + labourCost + shipping + heightTotal;
+    let gst = includeGST ? subtotal * 0.15 : 0;
+    let total = subtotal + gst;
+
+    document.getElementById('output').innerHTML = `
+      Fabric: $${fabricCost.toFixed(2)}<br>
+      Labour: $${labourCost.toFixed(2)}<br>
+      Shipping: $${shipping.toFixed(2)}<br>
+      Height Adjustments: $${heightTotal.toFixed(2)}<br>
+      Subtotal: $${subtotal.toFixed(2)}<br>
+      GST: $${gst.toFixed(2)}<br>
+      <strong>Total: $${total.toFixed(2)}</strong>
+    `;
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    populateProductOptions();
+    document.getElementById('product').addEventListener('change', updateFabricOptions);
+  });
+</script>
+</body>
+</html>
